@@ -84,16 +84,19 @@ char* RelativeDirectory( char* szDir );
 char* AbsoluteDirectory( char* szDir );
 BOOL  g_bLoggedIn;
 char  g_szLocalAddr[MAX_ADDR_LEN];
-extern ofstream out;
-
+ofstream out;
+extern sockaddr addr;
+extern struct sockaddr_in fsin;
 void TCPftpd(SOCKET fd){
 	SOCKET_INF a;
 	LPSOCKET_INF g_sockets=&a;
 	
-	sprintf(g_szLocalAddr,"%s",GetLocalAddress());
 
 	WelcomeInfo(fd);
 	SetCurrentDirectoryA(ftproot);
+	sprintf(g_szLocalAddr,"%s.txt",inet_ntoa(fsin.sin_addr));
+	out.open(g_szLocalAddr,ios::app|ios::out);
+	//sprintf(g_szLocalAddr,"%s",GetLocalAddress());
 	
 	char buff[DATA_BUFSIZE];
 	memset( buff,0,DATA_BUFSIZE );
@@ -108,6 +111,7 @@ void TCPftpd(SOCKET fd){
 		if ((g_sockets->dwBytesRecv=recv(g_sockets->s,g_sockets->buffRecv,sizeof(g_sockets->buffRecv) , NULL)) <=0){
 			//printf("exit\n");
 			out<<"exit\n";
+			out.close();
 			closesocket(fd);
 			return;
 		}
@@ -153,6 +157,7 @@ int SendRes( LPSOCKET_INF pSI )
     }
 	pSI->wsaBuf.buf[dwSendBytes]='\0';
 	out<<"send:"<<pSI->wsaBuf.buf<<endl;
+
 	//printf("send:%s\n",pSI->wsaBuf.buf);
 
 
@@ -241,7 +246,10 @@ char* ConvertCommaAddress( char* szAddress, WORD wPort )
 	char szPort[10];
 	sprintf( szPort,"%d,%d",wPort/256,wPort%256 );
 	char szIpAddr[20];
-	sprintf( szIpAddr,"%s,",szAddress );
+
+	//sprintf( szIpAddr,"%s,",szAddress );
+	sprintf( szIpAddr,"%s,",inet_ntoa(((sockaddr_in *)&addr)->sin_addr));
+
 	int idx = 0;
 	while( szIpAddr[idx] ) 
 	{
@@ -557,9 +565,9 @@ int DealCommand( LPSOCKET_INF pSI )
 		
 	char  szCmd[MAX_REQ_LEN]; 
 	char  szCurrDir[MAX_PATH];
-	strcpy( szCmd, pSI->buffRecv );
+	strcpy(szCmd, pSI->buffRecv );
 	if( strtok( szCmd," \r\n") == NULL ) return -1;
-	strupr( szCmd );
+	strupr(szCmd );
 
 	const char*  szOpeningAMode = "150 Opening ASCII mode data connection for ";
 	static DWORD  dwIpAddr = 0;
@@ -768,6 +776,35 @@ int DealCommand( LPSOCKET_INF pSI )
 		if( SendRes( pSI ) == -1 ) 
 			return -1;
 		return CMD_OK;		
+	}
+	if( strstr( szCmd,"DELE" )) 
+	{
+		char *file = strtok( NULL,"\r\n" );
+		char szSetDir[MAX_PATH];
+		GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+		strcat(szCurrDir,"\\");
+		strcat(szCurrDir,file);
+		if(DeleteFileA((LPCSTR)szCurrDir))
+			sprintf( pSI->buffSend,"250 %s has deleted.\r\n",file);
+		else sprintf( pSI->buffSend,"250 %s has not deleted.\r\n",file);
+		if( SendRes( pSI ) == -1 ) return -1;
+
+		return nRetVal;
+	}
+	if( strstr( szCmd,"MKD" )) 
+	{
+		char *file = strtok( NULL,"\r\n" );
+		char szSetDir[MAX_PATH];
+		GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+		strcat(szCurrDir,"\\");
+		strcat(szCurrDir,file);
+		if(CreateDirectoryA((LPCSTR)szCurrDir,NULL))
+			sprintf( pSI->buffSend,"250 %s has created.\r\n",file);
+		else sprintf( pSI->buffSend,"250 %s has not created.\r\n",file);
+			
+		if( SendRes( pSI ) == -1 ) return -1;
+
+		return nRetVal;
 	}
 	//其余都是无效的命令
 	sprintf(pSI->buffSend,"500 '%s' command not understand.\r\n",szCmd );

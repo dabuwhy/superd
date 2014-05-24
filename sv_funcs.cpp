@@ -225,21 +225,13 @@ void TCPhttpd(SOCKET fd){
 			bool src=false;
 			char tmp=' ';
 			for(i=0;!f.eof();i++){
-				if(src){
+				/*if(src){
 					//readsrc(f,custom,i);
-					while(tmp!='"') f.get(tmp);
-					tmp=' ';
-					i-=5;
+					
 					src=false;
-				}
+				}*/
 				f.get(custom[i]);
-				if(i>4&&custom[i-4]=='s'&&custom[i-3]=='r'&&custom[i-2]=='c'&&custom[i-1]=='='&&custom[i]=='"'){
-					src=true;
-				}
-				else if(i>4&&custom[i-4]=='h'&&custom[i-3]=='r'&&custom[i-2]=='e'&&custom[i-1]=='f'&&custom[i]=='='){
-					f.get(custom[i]);
-					src=true;
-				}
+				
 			}
 			f.close();
 			custom[i-1]='\0';

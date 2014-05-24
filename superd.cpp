@@ -43,7 +43,7 @@ char tcproot[128];
 char ftproot[128];
 char user[128];
 char pass[128];
-ofstream out("Log.txt",ios::app|ios::out);
+
 /*------------------------------------------------------------------------
  * main - Super-server main program
  *------------------------------------------------------------------------
@@ -61,9 +61,6 @@ void main(int argc, char *argv[]){
 	in.getline(user,128);
 	in.getline(pass,128);
 	in.close();
-	if(!out){
-		errexit("open log error\n", GetLastError());
-	}
 	switch (argc) {
 	case 1:
 		break;
@@ -106,8 +103,10 @@ void main(int argc, char *argv[]){
  * doTCP - handle a TCP service connection request
  *------------------------------------------------------------------------
  */
+sockaddr addr;
+struct sockaddr_in fsin;	/* the request from address	*/
 void doTCP(struct service *psv){
-	struct sockaddr_in fsin;	/* the request from address	*/
+	
 	int		alen;		/* from-address length		*/
 	SOCKET		ssock;
 
@@ -119,7 +118,7 @@ void doTCP(struct service *psv){
 	LPHOSTENT	lp=gethostbyname(LocalAddr);
 	struct in_addr *hostAddr=((LPIN_ADDR)lp->h_addr);
 
-	sockaddr addr;
+
 	int len=sizeof(addr);
 	getsockname(ssock,&addr,&len);
 	

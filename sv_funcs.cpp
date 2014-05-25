@@ -53,14 +53,12 @@ void TCPechod(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	((SOCKET_INF *)w)->use=true;
 }
 void UDPechod(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
-	char	buf[BUFFERSIZE];
-	int	cc;
+	//char	buf[BUFFERSIZE];
 	int alen=sizeof(((SOCKET_INF *)w)->fsin);
 
 
-	while (cc =recvfrom(fd,buf,sizeof(buf),0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),&alen)) {
-		if (cc == SOCKET_ERROR)
-			break;//errexit("echo recv: errnum %d\n", GetLastError());
+	//while (recvfrom(fd,buf,sizeof(buf),0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),&alen)!=SOCKET_ERROR) 
+	do{
 		if(((SOCKET_INF *)w)->bPasv){
 			((SOCKET_INF *)w)->bPasv=false;
 			char        LocalAddr[80];
@@ -69,11 +67,11 @@ void UDPechod(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 			struct in_addr *hostAddr=((LPIN_ADDR)lp->h_addr);
 
 			printf("%s  %d  %s:",inet_ntoa((((SOCKET_INF *)w)->fsin).sin_addr),(((SOCKET_INF *)w)->fsin).sin_port,LocalAddr);
-			printf("%s  %s\n",inet_ntoa(*hostAddr),((SOCKET_INF *)w)->buffRecv);
+			printf("%s  %s\n",inet_ntoa(*hostAddr),((SOCKET_INF *)w)->directory);
 			
 		}
-		(void) sendto(fd,buf,128,0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),sizeof(((SOCKET_INF *)w)->fsin));
-	}
+		(void) sendto(fd,((SOCKET_INF *)w)->buffRecv,128,0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),sizeof(((SOCKET_INF *)w)->fsin));
+	}while (recvfrom(fd,((SOCKET_INF *)w)->buffRecv,sizeof(((SOCKET_INF *)w)->buffRecv),0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),&alen)!=SOCKET_ERROR);
 	//closesocket(fd);
 	((SOCKET_INF *)w)->use=true;
 }
@@ -138,8 +136,8 @@ void TCPtimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 void UDPtimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	int alen=sizeof(((SOCKET_INF *)w)->fsin);
 	char	buf[2048];
-	if (recvfrom(fd, buf, sizeof(buf), 0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin), &alen) == SOCKET_ERROR)
-			errexit("recvfrom: error %d\n", GetLastError());
+	//if (recvfrom(fd, buf, sizeof(buf), 0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin), &alen) == SOCKET_ERROR)
+	//		errexit("recvfrom: error %d\n", GetLastError());
 	time_t	now;
 	(void) time(&now);
 	now = htonl((u_long)(now + WINEPOCH));
@@ -150,7 +148,7 @@ void UDPtimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	struct in_addr *hostAddr=((LPIN_ADDR)lp->h_addr);
 
 	printf("%s  %d  %s:",inet_ntoa((((SOCKET_INF *)w)->fsin).sin_addr),(((SOCKET_INF *)w)->fsin).sin_port,LocalAddr);
-	printf("%s  %s\n",inet_ntoa(*hostAddr),((SOCKET_INF *)w)->buffRecv);
+	printf("%s  %s\n",inet_ntoa(*hostAddr),((SOCKET_INF *)w)->directory);
 
 
 	(void) sendto(fd, (char *)&now, sizeof(now), 0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin), sizeof(((SOCKET_INF *)w)->fsin));

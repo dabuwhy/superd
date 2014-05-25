@@ -127,8 +127,10 @@ void main(int argc, char *argv[]){
 					a[i].s=psv->sv_sock;
 					a[i].use=false;
 					a[i].bPasv=true;
-					strcpy(a[i].buffRecv,"UDP");
-					strcat(a[i].buffRecv,psv->sv_name);
+					strcpy(a[i].directory,"UDP");
+					strcat(a[i].directory,psv->sv_name);
+					int alen=sizeof(a[i].fsin);
+					if(recvfrom(a[i].s,a[i].buffRecv,sizeof(a[i].buffRecv),0,(struct sockaddr *)&(a[i].fsin),&alen)!=SOCKET_ERROR);
 					_beginthread((void (*)(void *))psv->sv_func, 0, (void *)&(a[i]));
 					//psv->sv_func((void *)&(a[i]));
 				}

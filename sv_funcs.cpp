@@ -12,14 +12,34 @@ using namespace std;
 #define	BUFFERSIZE	4096		/* max read buffer size	*/
 extern char tcproot[128];
 extern char ftproot[128];
-void	TCPechod(SOCKET), TCPchargend(SOCKET), TCPdaytimed(SOCKET),TCPtimed(SOCKET);
+typedef struct y{
+   CHAR   buffRecv[8192];
+   CHAR   buffSend[8192];
+   WSABUF wsaBuf;
+   SOCKET s;
+   SOCKET send;
+	SOCKET sAccept;
+   WSAOVERLAPPED o;
+   DWORD dwBytesSend;
+   DWORD dwBytesRecv;
+   int   nStatus;
+   char directory[512];
+	bool use;
+	bool bPasv;
+	ofstream out;
+	sockaddr_in fsin;
+	y(){
+		use=true;
+	}
+} SOCKET_INF, *LPSOCKET_INF;
+void	TCPechod(void *), TCPchargend(void *), TCPdaytimed(void *),TCPtimed(void *);
 void	errexit(const char *, ...);
 
 /*------------------------------------------------------------------------
  * TCPecho - do TCP ECHO on the given socket
  *------------------------------------------------------------------------
  */
-void TCPechod(SOCKET fd){
+void TCPechod(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	char	buf[BUFFERSIZE];
 	int	cc;
 
@@ -30,6 +50,7 @@ void TCPechod(SOCKET fd){
 			;//errexit("echo send: errnum %d\n", GetLastError());
 	}
 	closesocket(fd);
+	((SOCKET_INF *)w)->use=true;
 }
 
 #define	LINELEN		72
@@ -38,7 +59,7 @@ void TCPechod(SOCKET fd){
  * TCPchargend - do TCP CHARGEN on the given socket
  *------------------------------------------------------------------------
  */
-void TCPchargend(SOCKET fd){
+void TCPchargend(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	char	c, buf[LINELEN+2];	/* print LINELEN chars + \r\n */
 
 	c = ' ';
@@ -56,13 +77,14 @@ void TCPchargend(SOCKET fd){
 			break;
 	}
 	closesocket(fd);
+	((SOCKET_INF *)w)->use=true;
 }
 
 /*------------------------------------------------------------------------
  * TCPdaytimed - do TCP DAYTIME protocol
  *------------------------------------------------------------------------
  */
-void TCPdaytimed(SOCKET fd){
+void TCPdaytimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	char	buf[LINELEN];
 	time_t	now;
 
@@ -70,6 +92,7 @@ void TCPdaytimed(SOCKET fd){
 	sprintf(buf, "%s", ctime(&now));
 	(void) send(fd, buf, strlen(buf), 0);
 	closesocket(fd);
+	((SOCKET_INF *)w)->use=true;
 }
 
 #define	WINEPOCH	2208988800	/* Windows epoch, in UCT secs	*/
@@ -78,13 +101,14 @@ void TCPdaytimed(SOCKET fd){
  * TCPtimed - do TCP TIME protocol
  *------------------------------------------------------------------------
  */
-void TCPtimed(SOCKET fd){
+void TCPtimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	time_t	now;
 
 	(void) time(&now);
 	now = htonl((u_long)(now + WINEPOCH));
 	(void) send(fd, (char *)&now, sizeof(now), 0);
 	closesocket(fd);
+	((SOCKET_INF *)w)->use=true;
 }
 void ReadHttpHeaderLine(SOCKET &fd,char *request1,char *buf,int &bufLength){
 	int nBytesThisTime=bufLength,nLength=0;
@@ -155,7 +179,7 @@ void readsrc(ifstream &f,char *custom,int &i){
 	}*/
 	custom[i]='"';i++;
 }
-void TCPhttpd(SOCKET fd){
+void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	char hdrFmt[]=
 		"HTTP/1.0 200 OK\r\n"
 		"Server: WY's Socket Server\r\n"
@@ -249,11 +273,11 @@ void TCPhttpd(SOCKET fd){
 		if(fd!=NULL) ReadHttpHeaderLine(fd,request2,buf,bufLength);
 	}
 	closesocket(fd);
-
+	((SOCKET_INF *)w)->use=true;
 }
 
 /*
-void TCPftpd(SOCKET fd){
+void TCPftpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	char buf[BUFFERSIZE];
 	int nBytesThisTime;
 	strcpy(buf,"220 wy ready\r\n");

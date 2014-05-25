@@ -48,15 +48,25 @@ extern char ftproot[128];
 
 #define PORT_BIND   1821
 
-typedef struct {
-   CHAR   buffRecv[DATA_BUFSIZE];
-   CHAR   buffSend[DATA_BUFSIZE];
-   WSABUF wsaBuf;
-   SOCKET s;
-   WSAOVERLAPPED o;
-   DWORD dwBytesSend;
-   DWORD dwBytesRecv;
-   int   nStatus;
+typedef struct y{
+	CHAR   buffRecv[DATA_BUFSIZE];
+	CHAR   buffSend[DATA_BUFSIZE];
+	WSABUF wsaBuf;
+	SOCKET s;
+	SOCKET send;
+	SOCKET sAccept;
+	WSAOVERLAPPED o;
+	DWORD dwBytesSend;
+	DWORD dwBytesRecv;
+	int   nStatus;
+	char directory[512];
+	bool use;
+	bool bPasv;
+	ofstream out;
+	sockaddr_in fsin;
+	y(){
+		use=true;
+	}
 } SOCKET_INF, *LPSOCKET_INF;
 
 typedef struct {
@@ -76,7 +86,7 @@ int SendRes( LPSOCKET_INF pSI );
 int RecvReq( LPSOCKET_INF pSI );
 int DealCommand( LPSOCKET_INF pSI );
 void	errexit(const char *, ...);
-int GetFileList( LPFILE_INF pFI, UINT nArraySize, const char* szPath  );
+int GetFileList( LPSOCKET_INF &pSI ,LPFILE_INF pFI, UINT nArraySize, const char* szPath  );
 char* GetLocalAddress();
 char* HostToNet( char* szPath ) ;
 char* NetToHost( char* szPath ) ;
@@ -84,58 +94,62 @@ char* RelativeDirectory( char* szDir );
 char* AbsoluteDirectory( char* szDir );
 BOOL  g_bLoggedIn;
 char  g_szLocalAddr[MAX_ADDR_LEN];
-ofstream out;
+
 extern sockaddr addr;
-extern struct sockaddr_in fsin;
-void TCPftpd(SOCKET fd){
-	SOCKET_INF a;
-	LPSOCKET_INF g_sockets=&a;
+void TCPftpd(void *w){
+	
 	
 
-	WelcomeInfo(fd);
-	SetCurrentDirectoryA(ftproot);
-	sprintf(g_szLocalAddr,"%s.txt",inet_ntoa(fsin.sin_addr));
-	out.open(g_szLocalAddr,ios::app|ios::out);
-	//sprintf(g_szLocalAddr,"%s",GetLocalAddress());
+	WelcomeInfo(((SOCKET_INF *)w)->s);
+	//SetCurrentDirectoryA(ftproot);
+	strcpy(((SOCKET_INF *)w)->directory,ftproot);
+	
+	sprintf(g_szLocalAddr,"%s.txt",inet_ntoa(((SOCKET_INF *)w)->fsin.sin_addr));
+	
+	
 	
 	char buff[DATA_BUFSIZE];
 	memset( buff,0,DATA_BUFSIZE );
-	g_sockets->wsaBuf.buf = buff;  
-	g_sockets->wsaBuf.len = DATA_BUFSIZE;
-	g_sockets->s=fd;
-    g_sockets->dwBytesSend = 0;
-    g_sockets->dwBytesRecv = 0;
-	g_sockets->nStatus     = WSA_RECV;    // 接收
+	((SOCKET_INF *)w)->wsaBuf.buf = buff;  
+	((SOCKET_INF *)w)->wsaBuf.len = DATA_BUFSIZE;
+	
+    ((SOCKET_INF *)w)->dwBytesSend = 0;
+    ((SOCKET_INF *)w)->dwBytesRecv = 0;
+	((SOCKET_INF *)w)->nStatus     = WSA_RECV;    // 接收
 
 	while(1){
-		if ((g_sockets->dwBytesRecv=recv(g_sockets->s,g_sockets->buffRecv,sizeof(g_sockets->buffRecv) , NULL)) <=0){
+		((SOCKET_INF *)w)->out.open(g_szLocalAddr,ios::app|ios::out);
+
+		if ((((SOCKET_INF *)w)->dwBytesRecv=recv(((SOCKET_INF *)w)->s,((SOCKET_INF *)w)->buffRecv,sizeof(((SOCKET_INF *)w)->buffRecv) , NULL)) <=0){
 			//printf("exit\n");
-			out<<"exit\n";
-			out.close();
-			closesocket(fd);
+			((SOCKET_INF *)w)->out<<"exit\n";
+			((SOCKET_INF *)w)->out.close();
+			closesocket(((SOCKET_INF *)w)->s);
+			((SOCKET_INF *)w)->use=true;
 			return;
 		}
-		g_sockets->buffRecv[g_sockets->dwBytesRecv]='\0';
+		((SOCKET_INF *)w)->buffRecv[((SOCKET_INF *)w)->dwBytesRecv]='\0';
 
-		out<<"recv:"<<g_sockets->buffRecv<<endl;
+		((SOCKET_INF *)w)->out<<"recv:"<<((SOCKET_INF *)w)->buffRecv<<endl;
 		//printf("recv:%s\n\n",g_sockets->buffRecv);
 
 
-		if( g_sockets->buffRecv[g_sockets->dwBytesRecv-2] == '\r'&& g_sockets->buffRecv[g_sockets->dwBytesRecv-1] == '\n'&& g_sockets->dwBytesRecv > 2 )  
+		if( ((SOCKET_INF *)w)->buffRecv[((SOCKET_INF *)w)->dwBytesRecv-2] == '\r'&& ((SOCKET_INF *)w)->buffRecv[((SOCKET_INF *)w)->dwBytesRecv-1] == '\n'&& ((SOCKET_INF *)w)->dwBytesRecv > 2 )  
 		{                 
 			if( !g_bLoggedIn )
 			{
-				if( LoginIn(g_sockets) == LOGGED_IN )
+				if( LoginIn(((SOCKET_INF *)w)) == LOGGED_IN )
 					g_bLoggedIn = TRUE;
 			} 
 			else 
 			{
-				if(DealCommand( g_sockets )==FTP_QUIT)
+				if(DealCommand( ((SOCKET_INF *)w) )==FTP_QUIT)
 					;
 			}
 		
 	
 		}
+		((SOCKET_INF *)w)->out.close();
 
 	}
 }
@@ -156,7 +170,7 @@ int SendRes( LPSOCKET_INF pSI )
         }
     }
 	pSI->wsaBuf.buf[dwSendBytes]='\0';
-	out<<"send:"<<pSI->wsaBuf.buf<<endl;
+	pSI->out<<"send:"<<pSI->wsaBuf.buf<<endl;
 
 	//printf("send:%s\n",pSI->wsaBuf.buf);
 
@@ -232,7 +246,7 @@ int LoginIn( LPSOCKET_INF pSocketInfo  )
 		{
 			sprintf(pSI->buffSend,"%s",szLoggedIn);
 			//printf("User %s logged in\n",szUser );
-			out<<"User "<<szUser<<" logged in\n";
+			pSocketInfo->out<<"User "<<szUser<<" logged in\n";
 			nRetVal = LOGGED_IN;
 		}
 		if( SendRes( pSI ) == -1 ) 
@@ -296,10 +310,10 @@ int ConvertDotAddress( char* szAddress, LPDWORD pdwIpAddr, LPWORD pwPort )
 	return 0;
 }
 
-UINT FileListToString( char* buff, UINT nBuffSize,BOOL bDetails )
+UINT FileListToString( LPSOCKET_INF &pSI,char* buff, UINT nBuffSize,BOOL bDetails )
 {
 	FILE_INF   fi[MAX_FILE_NUM];
-	int nFiles = GetFileList( fi, MAX_FILE_NUM, "*.*" );
+	int nFiles = GetFileList( pSI,fi, MAX_FILE_NUM, "*.*" );
 	char szTemp[128];
 	sprintf( buff,"%s","" );
 	if( bDetails ) {
@@ -354,14 +368,15 @@ UINT FileListToString( char* buff, UINT nBuffSize,BOOL bDetails )
 	return strlen( buff );
 }
 
-DWORD ReadFileToBuffer( const char* szFile, char *buff, DWORD nFileSize )
+DWORD ReadFileToBuffer(  LPSOCKET_INF &pSI,const char* szFile, char *buff, DWORD nFileSize )
 {
 	DWORD  idx = 0;
 	DWORD  dwBytesLeft = nFileSize;
 	DWORD  dwNumOfBytesRead = 0;
 	char lpFileName[MAX_PATH];
-	GetCurrentDirectoryA( MAX_PATH,lpFileName );
-	strcat( lpFileName,"\\" );
+
+	strcpy(lpFileName,pSI->directory); //GetCurrentDirectoryA( MAX_PATH,lpFileName );
+	if(lpFileName[strlen(lpFileName)-1]!='\\')	strcat( lpFileName,"\\" );
 	strcat(lpFileName,szFile );
 	HANDLE hFile = CreateFileA( lpFileName,
 							   GENERIC_READ,
@@ -388,15 +403,15 @@ DWORD ReadFileToBuffer( const char* szFile, char *buff, DWORD nFileSize )
 	return idx;
 }
 
-DWORD WriteToFile( SOCKET s , const char* szFile )
+DWORD WriteToFile(  LPSOCKET_INF &pSI,SOCKET s , const char* szFile )
 {
 	DWORD  idx = 0;
 	DWORD  dwNumOfBytesWritten = 0;
 	DWORD  nBytesLeft = DATA_BUFSIZE;
 	char   buf[DATA_BUFSIZE];
 	char   lpFileName[MAX_PATH];
-	GetCurrentDirectoryA( MAX_PATH,lpFileName );
-	strcat( lpFileName,"\\" );
+	strcpy(lpFileName,pSI->directory);//GetCurrentDirectoryA( MAX_PATH,lpFileName );
+	if(lpFileName[strlen(lpFileName)-1]!='\\')	strcat( lpFileName,"\\" );
 	strcat(lpFileName,szFile );
 	HANDLE hFile = CreateFileA( lpFileName,
 							   GENERIC_WRITE,
@@ -450,12 +465,12 @@ DWORD WriteToFile( SOCKET s , const char* szFile )
 	CloseHandle( hFile );
 	return idx;
 }
-int CombindFileNameSize( const char* szFileName,char* szFileNS )
+int CombindFileNameSize(LPSOCKET_INF &pSI , const char* szFileName,char* szFileNS )
 {
 	// 假定文件的大小不超过4GB,只处理低位
 	int nFileSize = -1;
 	FILE_INF fi[1];
-	int nFiles = GetFileList( fi,1,szFileName );
+	int nFiles = GetFileList(pSI, fi,1,szFileName );
 	if( nFiles != 1 ) return -1;
 	sprintf( szFileNS, "%s<%d bytes>",szFileName,fi[0].nFileSizeLow );
 	nFileSize = fi[0].nFileSizeLow;
@@ -482,7 +497,7 @@ int	DataConn( SOCKET& s, DWORD dwIp, WORD wPort, int nMode )
 	else
 	{ 
 		inetAddr.sin_port = htons( DATA_FTP_PORT );
-		inetAddr.sin_addr.s_addr = inet_addr(GetLocalAddress());
+		inetAddr.sin_addr.s_addr = inet_addr(inet_ntoa(((sockaddr_in *)&addr)->sin_addr));
 	}
 
 	BOOL optval = TRUE;
@@ -542,9 +557,9 @@ int DataSend( SOCKET s, char* buff,int nBufSize )
 	}
 	return idx;
 }
-int DataRecv( SOCKET s, const char* szFileName )
+int DataRecv( LPSOCKET_INF &pSI, SOCKET s, const char* szFileName )
 {
-	return WriteToFile( s, szFileName );	
+	return WriteToFile( pSI,s, szFileName );	
 }
 
 SOCKET DataAccept( SOCKET& s )
@@ -556,13 +571,14 @@ SOCKET DataAccept( SOCKET& s )
 	}
 	return sAccept;
 }
+char  reName[MAX_PATH];
 int DealCommand( LPSOCKET_INF pSI )
 {
 	int nRetVal = 0;
-	static SOCKET sAccept = INVALID_SOCKET;
+	/*static SOCKET sAccept = INVALID_SOCKET;
 	static SOCKET s       = INVALID_SOCKET;
-	static BOOL   bPasv   = FALSE;
-		
+	static BOOL   bPasv   = FALSE;*/
+
 	char  szCmd[MAX_REQ_LEN]; 
 	char  szCurrDir[MAX_PATH];
 	strcpy(szCmd, pSI->buffRecv );
@@ -580,24 +596,25 @@ int DealCommand( LPSOCKET_INF pSI )
 		const char*  szPortCmdOK    = "200 PORT Command successful.\r\n";
 		sprintf(pSI->buffSend,"%s",szPortCmdOK );
 		if( SendRes( pSI ) == -1 ) return -1;
-		bPasv = FALSE;
+		//bPasv = FALSE;
+		pSI->bPasv=false;
 		return CMD_OK;
 	}
 	if( strstr( szCmd,"PASV") ) 
 	{
-		if( DataConn( s, htonl(INADDR_ANY), PORT_BIND, MODE_PASV ) == -1 )
+		if( DataConn( pSI->send, htonl(INADDR_ANY), PORT_BIND, MODE_PASV ) == -1 )
 			return -1;
-		char *szCommaAddress = ConvertCommaAddress( GetLocalAddress(),PORT_BIND );
+		char *szCommaAddress = ConvertCommaAddress( inet_ntoa(((sockaddr_in *)&addr)->sin_addr),PORT_BIND );
 		sprintf( pSI->buffSend,"227 Entering Passive Mode (%s).\r\n",szCommaAddress );
 		if( SendRes( pSI ) == -1 ) 
 			return -1;
-    	bPasv = TRUE;
+		pSI->bPasv = true;
 		return PASSIVE_MODE;		
 	}
 	if( strstr( szCmd, "NLST") || strstr( szCmd,"LIST") ) 
 	{
-		if( bPasv ) sAccept = DataAccept( s );
-		if( !bPasv )
+		if( pSI->bPasv ) pSI->sAccept = DataAccept( pSI->send );
+		if( !pSI->bPasv )
 			sprintf(pSI->buffSend,"%s/bin/ls.\r\n",szOpeningAMode );
 		else 
 			strcpy(pSI->buffSend,"125 Data connection already open; Transfer starting.\r\n");		
@@ -607,19 +624,20 @@ int DealCommand( LPSOCKET_INF pSI )
 		// 取得文件列表信息，并转换成字符串
 		BOOL bDetails = strstr(szCmd,"LIST")?TRUE:FALSE;
 		char buff[DATA_BUFSIZE];
-		UINT nStrLen = FileListToString( buff,sizeof(buff),bDetails);
-		if( !bPasv ) 
+		UINT nStrLen = FileListToString( pSI,buff,sizeof(buff),bDetails);
+		if( !pSI->bPasv ) 
 		{
-			if( DataConn( s,dwIpAddr,wPort,MODE_PORT ) == -1 )
+			if( DataConn( pSI->send,dwIpAddr,wPort,MODE_PORT ) == -1 )
 				return -1;
-			if( DataSend( s, buff,nStrLen ) == -1 )
+			if( DataSend( pSI->send, buff,nStrLen ) == -1 )
 				return -1;
-			closesocket(s);
+			closesocket(pSI->send);
+			pSI->use=true;
 		}
 		else 
 		{
-			DataSend( sAccept,buff,nStrLen );
-			closesocket( sAccept );
+			DataSend( pSI->sAccept,buff,nStrLen );
+			closesocket( pSI->sAccept );
 		}
 		sprintf( pSI->buffSend,"%s","226 Transfer complete.\r\n" );
 		if( SendRes( pSI ) == -1 )
@@ -629,17 +647,17 @@ int DealCommand( LPSOCKET_INF pSI )
 	}
 	if( strstr( szCmd, "RETR") ) 
 	{
-		if( bPasv ) sAccept = DataAccept(s);	
+		if( pSI->bPasv ) pSI->sAccept = DataAccept(pSI->send);	
 		char szFileNS[MAX_PATH];
 		char *szFile = strtok( NULL," \r\n" );
-		int nFileSize = CombindFileNameSize( szFile,szFileNS );
+		int nFileSize = CombindFileNameSize( pSI,szFile,szFileNS );
 		if( nFileSize == -1  ) 
 		{
 			sprintf( pSI->buffSend,"550 %s: 系统找不到指定的文件.\r\n",szFile);
 			if( SendRes( pSI ) == -1 )
 				return -1;
-			if( !bPasv ) closesocket( sAccept );
-			else closesocket( s );
+			if( !pSI->bPasv ) closesocket( pSI->sAccept );
+			else closesocket( pSI->send );
 			
 			return CANNOT_FIND; 
 		}
@@ -655,21 +673,21 @@ int DealCommand( LPSOCKET_INF pSI )
 			printf("Not enough memory error!\n");
 			return -1;
 		}
-		if( ReadFileToBuffer( szFile,buff, nFileSize ) == (DWORD)nFileSize ) 
+		if( ReadFileToBuffer(pSI, szFile,buff, nFileSize ) == (DWORD)nFileSize ) 
 		{
 			// 处理Data FTP连接
 			Sleep( 10 );
-			if( bPasv ) 
+			if( pSI->bPasv ) 
 			{
-				DataSend( sAccept,buff,nFileSize );
-				closesocket( sAccept );
+				DataSend( pSI->sAccept,buff,nFileSize );
+				closesocket( pSI->sAccept );
 			} 
 			else 
 			{
-				if( DataConn( s,dwIpAddr,wPort,MODE_PORT ) == -1 )
+				if( DataConn( pSI->send,dwIpAddr,wPort,MODE_PORT ) == -1 )
 					return -1;
-				DataSend( s, buff, nFileSize );
-				closesocket( s );
+				DataSend( pSI->send, buff, nFileSize );
+				closesocket( pSI->send );
 			}
 		}
 		if( buff != NULL )
@@ -684,7 +702,7 @@ int DealCommand( LPSOCKET_INF pSI )
 	}
 	if( strstr( szCmd, "STOR") ) 
 	{
-		if( bPasv ) sAccept = DataAccept(s);		
+		if( pSI->bPasv ) pSI->sAccept = DataAccept(pSI->send);		
 		char *szFile = strtok( NULL," \r\n" );
 		if( NULL == szFile ) return -1;
 		sprintf(pSI->buffSend,"%s%s.\r\n",szOpeningAMode,szFile);
@@ -692,13 +710,13 @@ int DealCommand( LPSOCKET_INF pSI )
 			return -1;
 
 		// 处理Data FTP连接
-		if( bPasv ) 
-			DataRecv( sAccept,szFile );
+		if( pSI->bPasv ) 
+			DataRecv( pSI,pSI->sAccept,szFile );
 		else 
 		{
-			if( DataConn( s,dwIpAddr,wPort,MODE_PORT ) == -1 )
+			if( DataConn( pSI->send,dwIpAddr,wPort,MODE_PORT ) == -1 )
 				return -1;
-			DataRecv( s, szFile );
+			DataRecv(pSI, pSI->send, szFile );
 		}
 		
 		sprintf( pSI->buffSend,"%s","226 Transfer complete.\r\n" );
@@ -716,7 +734,7 @@ int DealCommand( LPSOCKET_INF pSI )
 		return FTP_QUIT; 
 	}
 	if( strstr( szCmd,"XPWD" ) || strstr( szCmd,"PWD") )	{
-		GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+		strcpy(szCurrDir,pSI->directory);   //GetCurrentDirectoryA( MAX_PATH,szCurrDir );
 		sprintf( pSI->buffSend,"257 \"%s\" is current directory.\r\n",RelativeDirectory(szCurrDir) );
 		if( SendRes( pSI ) == -1 ) return -1;
 
@@ -731,7 +749,7 @@ int DealCommand( LPSOCKET_INF pSI )
 			strcpy(szSetDir,"..");
 		 else 
 			strcpy(szSetDir,AbsoluteDirectory( szDir ) );
-		if( !SetCurrentDirectoryA( szSetDir ) ) 
+		/*if( !SetCurrentDirectoryA( szSetDir ) ) 
 		{
 			sprintf(szCurrDir,"\\%s",szSetDir); 
 			sprintf( pSI->buffSend,"550 %s No such file or Directory.\r\n",
@@ -739,11 +757,13 @@ int DealCommand( LPSOCKET_INF pSI )
 			nRetVal = CANNOT_FIND;
 		} 
 		else 
-		{
-			GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+		{*/
+			strcpy(pSI->directory,szSetDir);
+			strcpy(szCurrDir,pSI->directory);
+			//GetCurrentDirectoryA( MAX_PATH,szCurrDir );
 			sprintf( pSI->buffSend,"250 Directory changed to %s.\r\n",RelativeDirectory(szCurrDir) );
 			nRetVal = DIR_CHANGED;
-		}
+		//}
 		if( SendRes( pSI ) == -1 ) return -1;
 
 		return nRetVal;
@@ -780,23 +800,20 @@ int DealCommand( LPSOCKET_INF pSI )
 	if( strstr( szCmd,"DELE" )) 
 	{
 		char *file = strtok( NULL,"\r\n" );
-		char szSetDir[MAX_PATH];
-		GetCurrentDirectoryA( MAX_PATH,szCurrDir );
-		strcat(szCurrDir,"\\");
+		strcpy(szCurrDir,pSI->directory);   //GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+		if(szCurrDir[strlen(szCurrDir)-1]!='\\')	strcat(szCurrDir,"\\");
 		strcat(szCurrDir,file);
 		if(DeleteFileA((LPCSTR)szCurrDir))
 			sprintf( pSI->buffSend,"250 %s has deleted.\r\n",file);
 		else sprintf( pSI->buffSend,"250 %s has not deleted.\r\n",file);
 		if( SendRes( pSI ) == -1 ) return -1;
 
-		return nRetVal;
+		return 250;
 	}
-	if( strstr( szCmd,"MKD" )) 
-	{
+	if( strstr( szCmd,"MKD" )){
 		char *file = strtok( NULL,"\r\n" );
-		char szSetDir[MAX_PATH];
-		GetCurrentDirectoryA( MAX_PATH,szCurrDir );
-		strcat(szCurrDir,"\\");
+		strcpy(szCurrDir,pSI->directory);   //GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+		if(szCurrDir[strlen(szCurrDir)-1]!='\\')	strcat(szCurrDir,"\\");
 		strcat(szCurrDir,file);
 		if(CreateDirectoryA((LPCSTR)szCurrDir,NULL))
 			sprintf( pSI->buffSend,"250 %s has created.\r\n",file);
@@ -804,7 +821,50 @@ int DealCommand( LPSOCKET_INF pSI )
 			
 		if( SendRes( pSI ) == -1 ) return -1;
 
-		return nRetVal;
+		return 250;
+	}
+	if( strstr( szCmd,"RMD" )) {
+		char *file = strtok( NULL,"\r\n" );
+		strcpy(szCurrDir,pSI->directory);
+		if(szCurrDir[strlen(szCurrDir)-1]!='\\')	strcat(szCurrDir,"\\");
+		strcat(szCurrDir,file);
+	// CString strResult;
+	//	int nResult = theServer.m_UserManager.GetDirectory(m_strUserName, strArguments, m_strCurrentDir, FTP_DELETE, strResult);
+		BOOL fbRet=FALSE;
+		fbRet= RemoveDirectoryA((LPCSTR)szCurrDir);
+		if(!fbRet){
+			/*if (GetLastError() == ERROR_DIR_NOT_EMPTY)
+					sprintf( pSI->buffSend,"550 Directory not empty.");
+			else*/
+				sprintf( pSI->buffSend,"450 Internal error deleting the directory.\r\n");
+		}
+		else{
+			sprintf(pSI->buffSend,"250 Directory deleted successfully\r\n");
+		}
+		if( SendRes( pSI ) == -1 ) return -1;
+
+		return 250;		
+	}
+
+	if( strstr( szCmd,"RNFR" )||strstr(szCmd,"RNTO")){
+		char *file = strtok( NULL,"\r\n" );
+		if(strstr(szCmd,"RNFR")){
+			strcpy(reName,pSI->directory);//GetCurrentDirectoryA( MAX_PATH,reName );
+			if(reName[strlen(reName)-1]!='\\')	strcat(reName,"\\");
+			strcat(reName,file);
+			sprintf( pSI->buffSend,"350 %s name copyd.\r\n",file);
+		}
+		else{
+			strcpy(szCurrDir,pSI->directory);   //GetCurrentDirectoryA( MAX_PATH,szCurrDir );
+			if(szCurrDir[strlen(szCurrDir)-1]!='\\')	strcat(szCurrDir,"\\");
+			strcat(szCurrDir,file);
+			if(rename(reName,szCurrDir)==0)
+				sprintf( pSI->buffSend,"250 %s has renamed.\r\n",file);
+			else sprintf( pSI->buffSend,"250 %s has not renamed.\r\n",file);
+		}
+		
+		if( SendRes( pSI ) == -1 ) return -1;
+		return 250;
 	}
 	//其余都是无效的命令
 	sprintf(pSI->buffSend,"500 '%s' command not understand.\r\n",szCmd );
@@ -844,13 +904,13 @@ char* GetLocalAddress(){
 	return inet_ntoa(*pinAddr);
 }
 
-int GetFileList( LPFILE_INF pFI, UINT nArraySize, const char* szPath  )
+int GetFileList(LPSOCKET_INF &pSI, LPFILE_INF pFI, UINT nArraySize, const char* szPath  )
 {
 	WIN32_FIND_DATAA  wfd;
 	int idx = 0;
 	CHAR lpFileName[MAX_PATH];
-	GetCurrentDirectoryA( MAX_PATH,lpFileName );
-	strcat( lpFileName,"\\" );
+	strcpy(lpFileName,pSI->directory);  //GetCurrentDirectoryA( MAX_PATH,lpFileName );
+	if(lpFileName[strlen(lpFileName)-1]!='\\')	strcat( lpFileName,"\\" );
 	strcat( lpFileName, szPath );
 	HANDLE hFile = FindFirstFileA( lpFileName, &wfd );
 	if ( hFile != INVALID_HANDLE_VALUE ) 

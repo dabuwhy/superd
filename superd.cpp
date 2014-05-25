@@ -13,10 +13,10 @@ struct service {
 	char	*sv_name;
 	char	sv_useTCP;
 	SOCKET	sv_sock;
-	void	(*sv_func)(SOCKET);
+	void	(*sv_func)(void *);
 };
 
-void	TCPechod(SOCKET), TCPchargend(SOCKET), TCPdaytimed(SOCKET),	TCPtimed(SOCKET),TCPhttpd(SOCKET),TCPftpd(SOCKET);
+void	TCPechod(void *), TCPchargend(void *), TCPdaytimed(void *),	TCPtimed(void *),TCPhttpd(void *),TCPftpd(void *);
 
 SOCKET	passiveTCP(const char *, int);
 SOCKET	passiveUDP(const char *);
@@ -43,6 +43,30 @@ char tcproot[128];
 char ftproot[128];
 char user[128];
 char pass[128];
+
+sockaddr addr;
+
+typedef struct y{
+   CHAR   buffRecv[8192];
+   CHAR   buffSend[8192];
+   WSABUF wsaBuf;
+   SOCKET s;
+   SOCKET send;
+	SOCKET sAccept;
+   WSAOVERLAPPED o;
+   DWORD dwBytesSend;
+   DWORD dwBytesRecv;
+   int   nStatus;
+   char directory[512];
+	bool use;
+	bool bPasv;
+	ofstream out;
+	sockaddr_in fsin;
+	y(){
+		use=true;
+	}
+} SOCKET_INF, *LPSOCKET_INF;
+SOCKET_INF a[1024];
 
 /*------------------------------------------------------------------------
  * main - Super-server main program
@@ -92,8 +116,7 @@ void main(int argc, char *argv[]){
 			if (FD_ISSET(psv->sv_sock, &rfds)) {
 				if (psv->sv_useTCP)
 					doTCP(psv);
-				else
-					psv->sv_func(psv->sv_sock);
+				//else	psv->sv_func(psv->sv_sock);
 			}
 		}
 	}
@@ -103,16 +126,15 @@ void main(int argc, char *argv[]){
  * doTCP - handle a TCP service connection request
  *------------------------------------------------------------------------
  */
-sockaddr addr;
-struct sockaddr_in fsin;	/* the request from address	*/
+
 void doTCP(struct service *psv){
-	
-	int		alen;		/* from-address length		*/
+	struct sockaddr_in fsin;	/* the request from address	*/
+	int		alen,i;		/* from-address length		*/
 	SOCKET		ssock;
 
 	alen = sizeof(fsin);
 	ssock = accept(psv->sv_sock, (struct sockaddr *)&fsin, &alen);
-
+	
 	char        LocalAddr[80];
 	gethostname(LocalAddr,sizeof(LocalAddr));
 	LPHOSTENT	lp=gethostbyname(LocalAddr);
@@ -127,8 +149,17 @@ void doTCP(struct service *psv){
 	printf("%s  %s\n",inet_ntoa(((sockaddr_in *)&addr)->sin_addr),psv->sv_name);
 	if (ssock == INVALID_SOCKET)
 		errexit("accept: %d\n", GetLastError());
-	if (_beginthread((void (*)(void *))psv->sv_func, 0, (void *)ssock)== (unsigned long) -1)
+	do{
+		for(i=0;i<1024;i++) if(a[i].use) break;
+		
+	}while(i==1024);
+	
+	a[i].s=ssock;
+	a[i].use=false;
+	a[i].fsin=fsin;
+	if(_beginthread((void (*)(void *))psv->sv_func, 0, (void *)&(a[i]))== (unsigned long) -1)
 		errexit("_beginthread: %s\n", strerror(errno));
+	
 }
 
 

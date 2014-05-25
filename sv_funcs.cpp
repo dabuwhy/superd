@@ -45,14 +45,38 @@ void TCPechod(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 
 	while (cc = recv(fd, buf, sizeof(buf), 0)) {
 		if (cc == SOCKET_ERROR)
-			;//errexit("echo recv: errnum %d\n", GetLastError());
+			break;//errexit("echo recv: errnum %d\n", GetLastError());
 		if (send(fd, buf, cc, 0) == SOCKET_ERROR)
-			;//errexit("echo send: errnum %d\n", GetLastError());
+			break;//errexit("echo send: errnum %d\n", GetLastError());
 	}
 	closesocket(fd);
 	((SOCKET_INF *)w)->use=true;
 }
+void UDPechod(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
+	char	buf[BUFFERSIZE];
+	int	cc;
+	int alen=sizeof(((SOCKET_INF *)w)->fsin);
 
+
+	while (cc =recvfrom(fd,buf,sizeof(buf),0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),&alen)) {
+		if (cc == SOCKET_ERROR)
+			break;//errexit("echo recv: errnum %d\n", GetLastError());
+		if(((SOCKET_INF *)w)->bPasv){
+			((SOCKET_INF *)w)->bPasv=false;
+			char        LocalAddr[80];
+			gethostname(LocalAddr,sizeof(LocalAddr));
+			LPHOSTENT	lp=gethostbyname(LocalAddr);
+			struct in_addr *hostAddr=((LPIN_ADDR)lp->h_addr);
+
+			printf("%s  %d  %s:",inet_ntoa((((SOCKET_INF *)w)->fsin).sin_addr),(((SOCKET_INF *)w)->fsin).sin_port,LocalAddr);
+			printf("%s  %s\n",inet_ntoa(*hostAddr),((SOCKET_INF *)w)->buffRecv);
+			
+		}
+		(void) sendto(fd,buf,128,0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin),sizeof(((SOCKET_INF *)w)->fsin));
+	}
+	//closesocket(fd);
+	((SOCKET_INF *)w)->use=true;
+}
 #define	LINELEN		72
 
 /*------------------------------------------------------------------------
@@ -110,6 +134,29 @@ void TCPtimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	closesocket(fd);
 	((SOCKET_INF *)w)->use=true;
 }
+
+void UDPtimed(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
+	int alen=sizeof(((SOCKET_INF *)w)->fsin);
+	char	buf[2048];
+	if (recvfrom(fd, buf, sizeof(buf), 0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin), &alen) == SOCKET_ERROR)
+			errexit("recvfrom: error %d\n", GetLastError());
+	time_t	now;
+	(void) time(&now);
+	now = htonl((u_long)(now + WINEPOCH));
+
+	char        LocalAddr[80];
+	gethostname(LocalAddr,sizeof(LocalAddr));
+	LPHOSTENT	lp=gethostbyname(LocalAddr);
+	struct in_addr *hostAddr=((LPIN_ADDR)lp->h_addr);
+
+	printf("%s  %d  %s:",inet_ntoa((((SOCKET_INF *)w)->fsin).sin_addr),(((SOCKET_INF *)w)->fsin).sin_port,LocalAddr);
+	printf("%s  %s\n",inet_ntoa(*hostAddr),((SOCKET_INF *)w)->buffRecv);
+
+
+	(void) sendto(fd, (char *)&now, sizeof(now), 0,(struct sockaddr *)&(((SOCKET_INF *)w)->fsin), sizeof(((SOCKET_INF *)w)->fsin));
+	//closesocket(fd);
+	((SOCKET_INF *)w)->use=true;
+}
 void ReadHttpHeaderLine(SOCKET &fd,char *request1,char *buf,int &bufLength){
 	int nBytesThisTime=bufLength,nLength=0;
 	char *pch1=buf,*pch2;
@@ -130,11 +177,11 @@ void ReadHttpHeaderLine(SOCKET &fd,char *request1,char *buf,int &bufLength){
 		TIMEVAL tv={10,0};
 		FD_SET fdd={1,fd};
 		if(select(0,&fdd,NULL,NULL,&tv)==0){
-			//printf("Receive timeout\n");
+			break;//printf("Receive timeout\n");
 			return;
 		}
 		if((nBytesThisTime=recv(fd, buf+bufLength, BUFFERSIZE-bufLength, 0))==SOCKET_ERROR){
-			//printf("Receive error\n");
+			break;//printf("Receive error\n");
 			return;
 		}
 		
@@ -150,11 +197,11 @@ void Write(SOCKET &fd,const char* pch,const int size){
 		TIMEVAL tv={10,0};
 		FD_SET fdd={1,fd};
 		if(select(0,NULL,&fdd,NULL,&tv)==0){
-			//printf("Send timeout\n");
+			break;//printf("Send timeout\n");
 			return;
 		}
 		if((b=send(fd,p,size-a,0))<0){
-			//printf("Send error\n");
+			break;//printf("Send error\n");
 			return;
 		}
 		a+=b;

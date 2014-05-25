@@ -47,10 +47,8 @@ SOCKET passivesock(const char *service, const char *transport, int qlen){
 
     /* Bind the socket */
 	if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) == SOCKET_ERROR)
-		errexit("can't bind to %s port: %d\n", service,
-			GetLastError());
+		errexit("can't bind to %s port: %d\n", service,	GetLastError());
 	if (type == SOCK_STREAM && listen(s, qlen) == SOCKET_ERROR)
-		errexit("can't listen on %s port: %d\n", service,
-			GetLastError());
+		errexit("can't listen on %s port: %d\n", service,GetLastError());
 	return s;
 }

@@ -16,7 +16,7 @@ struct service {
 	void	(*sv_func)(void *);
 };
 
-void	TCPechod(void *), TCPchargend(void *), TCPdaytimed(void *),	TCPtimed(void *),TCPhttpd(void *),TCPftpd(void *);
+void	TCPechod(void *), TCPchargend(void *), TCPdaytimed(void *),	TCPtimed(void *),TCPhttpd(void *),TCPftpd(void *),UDPtimed(void *),UDPechod(void *);
 
 SOCKET	passiveTCP(const char *, int);
 SOCKET	passiveUDP(const char *);
@@ -30,12 +30,15 @@ struct service svent[] =
 		{ "time", TCP_SERV, INVALID_SOCKET, TCPtimed },
 		{ "http", TCP_SERV, INVALID_SOCKET, TCPhttpd },
 		{ "ftp", TCP_SERV, INVALID_SOCKET, TCPftpd },
+		{ "time", UDP_SERV, INVALID_SOCKET, UDPtimed },
+		{ "daytime", UDP_SERV, INVALID_SOCKET, UDPtimed },
+		{ "echo", UDP_SERV, INVALID_SOCKET, UDPechod },
 		{ 0, 0, 0, 0 },
 	};
 
 
 #define WSVERS		MAKEWORD(2, 0)
-#define	QLEN		   6
+#define	QLEN		   5
 #define	LINELEN		 128
 
 extern	u_short	portbase;	/* from passivesock()	*/
@@ -116,6 +119,19 @@ void main(int argc, char *argv[]){
 			if (FD_ISSET(psv->sv_sock, &rfds)) {
 				if (psv->sv_useTCP)
 					doTCP(psv);
+				else{
+					int i;
+					do{
+						for(i=0;i<1024;i++) if(a[i].use) break;
+					}while(i==1024);
+					a[i].s=psv->sv_sock;
+					a[i].use=false;
+					a[i].bPasv=true;
+					strcpy(a[i].buffRecv,"UDP");
+					strcat(a[i].buffRecv,psv->sv_name);
+					_beginthread((void (*)(void *))psv->sv_func, 0, (void *)&(a[i]));
+					//psv->sv_func((void *)&(a[i]));
+				}
 				//else	psv->sv_func(psv->sv_sock);
 			}
 		}

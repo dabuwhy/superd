@@ -1,3 +1,4 @@
+//13S103046 王岳
 //#include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -143,8 +144,13 @@ void TCPftpd(void *w){
 			} 
 			else 
 			{
-				if(DealCommand( ((SOCKET_INF *)w) )==FTP_QUIT)
-					;
+				if(DealCommand( ((SOCKET_INF *)w) )==FTP_QUIT){
+					((SOCKET_INF *)w)->out<<"exit\n";
+					((SOCKET_INF *)w)->out.close();
+					closesocket(((SOCKET_INF *)w)->s);
+					((SOCKET_INF *)w)->use=true;
+					return;
+				}
 			}
 		
 	

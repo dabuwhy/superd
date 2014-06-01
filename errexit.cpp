@@ -1,4 +1,4 @@
-/* 13S103046 ÍõÔÀ
+/* 13S103046 ç‹å²³
 errexit.cpp - errexit */
 
 #include <stdarg.h>

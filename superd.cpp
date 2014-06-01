@@ -1,4 +1,4 @@
-/* 13S103046 ÍõÔÀ
+/* 13S103046 ç‹å²³
 superd.cpp - main, doTCP */
 
 #include <process.h>

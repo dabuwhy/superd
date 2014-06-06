@@ -8,6 +8,7 @@ sv_funcs.cpp - TCPechod, TCPchargend, TCPdaytimed, TCPtimed */
 #include <string>
 #include <iostream>
 #include <io.h>
+#include <map>
 using namespace std;
 #define	BUFFERSIZE	4096		/* max read buffer size	*/
 extern char tcproot[128];
@@ -224,14 +225,89 @@ void readsrc(ifstream &f,char *custom,int &i){
 	}*/
 	custom[i]='"';i++;
 }
+
+	
 void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
+
+	map<string, char *> m_typeMap;
+	m_typeMap[".doc"]	= "application/msword";
+	m_typeMap[".bin"]	= "application/octet-stream";
+	m_typeMap[".dll"]	= "application/octet-stream";
+	m_typeMap[".exe"]	= "application/octet-stream";
+	m_typeMap[".pdf"]	= "application/pdf";
+	m_typeMap[".ai"]	= "application/postscript";
+	m_typeMap[".eps"]	= "application/postscript";
+	m_typeMap[".ps"]	= "application/postscript";
+	m_typeMap[".rtf"]	= "application/rtf";
+	m_typeMap[".fdf"]	= "application/vnd.fdf";
+	m_typeMap[".arj"]	= "application/x-arj";
+	m_typeMap[".gz"]	= "application/x-gzip";
+	m_typeMap[".class"]	= "application/x-java-class";
+	m_typeMap[".js"]	= "application/x-javascript";
+	m_typeMap[".lzh"]	= "application/x-lzh";
+	m_typeMap[".lnk"]	= "application/x-ms-shortcut";
+	m_typeMap[".tar"]	= "application/x-tar";
+	m_typeMap[".hlp"]	= "application/x-winhelp";
+	m_typeMap[".cert"]	= "application/x-x509-ca-cert";
+	m_typeMap[".zip"]	= "application/zip";
+	m_typeMap[".cab"]	= "application/x-compressed";
+	m_typeMap[".arj"]	= "application/x-compressed";
+	m_typeMap[".aif"]	= "audio/aiff";
+	m_typeMap[".aifc"]	= "audio/aiff";
+	m_typeMap[".aiff"]	= "audio/aiff";
+	m_typeMap[".au"]	= "audio/basic";
+	m_typeMap[".snd"]	= "audio/basic";
+	m_typeMap[".mid"]	= "audio/midi";
+	m_typeMap[".rmi"]	= "audio/midi";
+	m_typeMap[".mp3"]	= "audio/mpeg";
+	m_typeMap[".vox"]	= "audio/voxware";
+	m_typeMap[".wav"]	= "audio/wav";
+	m_typeMap[".ra"]	= "audio/x-pn-realaudio";
+	m_typeMap[".ram"]	= "audio/x-pn-realaudio";
+	m_typeMap[".bmp"]	= "image/bmp";
+	m_typeMap[".gif"]	= "image/gif";
+	m_typeMap[".jpeg"]	= "image/jpeg";
+	m_typeMap[".jpg"]	= "image/jpeg";
+	m_typeMap[".tif"]	= "image/tiff";
+	m_typeMap[".tiff"]	= "image/tiff";
+	m_typeMap[".xbm"]	= "image/xbm";
+	m_typeMap[".wrl"]	= "model/vrml";
+	m_typeMap[".htm"]	= "text/html";
+	m_typeMap[".html"]	= "text/html";
+	m_typeMap[".c"]		= "text/plain";
+	m_typeMap[".cpp"]	= "text/plain";
+	m_typeMap[".def"]	= "text/plain";
+	m_typeMap[".h"]		= "text/plain";
+	m_typeMap[".txt"]	= "text/plain";
+	m_typeMap[".rtx"]	= "text/richtext";
+	m_typeMap[".rtf"]	= "text/richtext";
+	m_typeMap[".java"]	= "text/x-java-source";
+	m_typeMap[".css"]	= "text/css";
+	m_typeMap[".mpeg"]	= "video/mpeg";
+	m_typeMap[".mpg"]	= "video/mpeg";
+	m_typeMap[".mpe"]	= "video/mpeg";
+	m_typeMap[".avi"]	= "video/msvideo";
+	m_typeMap[".mov"]	= "video/quicktime";
+	m_typeMap[".qt"]	= "video/quicktime";
+	m_typeMap[".shtml"]	= "wwwserver/html-ssi";
+	m_typeMap[".asa"]	= "wwwserver/isapi";
+	m_typeMap[".asp"]	= "wwwserver/isapi";
+	m_typeMap[".cfm"]	= "wwwserver/isapi";
+	m_typeMap[".dbm"]	= "wwwserver/isapi";
+	m_typeMap[".isa"]	= "wwwserver/isapi";
+	m_typeMap[".plx"]	= "wwwserver/isapi";
+	m_typeMap[".url"]	= "wwwserver/isapi";
+	m_typeMap[".cgi"]	= "wwwserver/isapi";
+	m_typeMap[".php"]	= "wwwserver/isapi";
+	m_typeMap[".wcgi"]	= "wwwserver/isapi";
 	char hdrFmt[]=
 		"HTTP/1.0 200 OK\r\n"
 		"Server: WY's Socket Server\r\n"
 		"Date: %s\r\n"
-		"Content-Type: text/html\r\n"
+		"Content-Type: %s\r\n"
 		"Accept-Ranges: bytes\r\n"
 		"Content-Length: %d\r\n";
+	//"Content-Type: text/html\r\n"
 	char CustomHtml[]=
 		"<html>\r\n"
 		"<head>\r\n"
@@ -247,7 +323,8 @@ void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 	struct tm *tm1=NULL;
 	(void) time(&now);
 	tm1=localtime(&now);
-	char t[256],dire[256],custom[BUFFERSIZE];
+	char t[256],dire[256];
+	BYTE custom[BUFFERSIZE];
 	strftime(t,sizeof(t),"%a, %d %b %Y %H:%M:%S GMT",tm1);
 
 	char headers[500],request1[100],request2[100],*ptoken1,*ptoken2;
@@ -282,33 +359,44 @@ void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 			}
 			dire[j]='\0';
 			//printf("%s\n",dire);
+			char *a=strstr(ptoken2,".");
+			map<string, char *>::iterator it;
+			if(a!=NULL) it = m_typeMap.find(strlwr(a));
+
 			ifstream f(dire,ios::binary);
 			if(!f){
 				strcat(dire,"index.html");
 				f.open(dire,ios::binary);
 				if(!f){
-					//printf("open root error\n");
-					return;
+					strcat(dire,"index.htm");
+					f.open(dire,ios::binary);
+					if(!f){
+						return;
+					}
 				}
 			}
 			bool src=false;
 			char tmp=' ';
-			for(i=0;!f.eof();i++){
-				/*if(src){
-					//readsrc(f,custom,i);
+				f.read((char *)custom,sizeof(custom));
+				//printf("%s\n",custom);
+				if(a!=NULL){
 					
-					src=false;
-				}*/
-				f.get(custom[i]);
+					//printf("%s",(*it).second);
+					DWORD len=GetFileSize(f, NULL);
+					wsprintfA(headers, hdrFmt, (const char*) t,(*it).second, len);
+				}
+				else wsprintfA(headers, hdrFmt, (const char*) t,"text/html", f.gcount());
+				strcat(headers, "\r\n");
+				Write(fd,headers,strlen(headers));
+				Write(fd,(char *)custom, f.gcount());
+			while(!f.eof()){
+				f.read((char *)custom,sizeof(custom));
 				
+				Write(fd,(char *)custom, f.gcount());
 			}
+
+			
 			f.close();
-			custom[i-1]='\0';
-			//printf("%s\n",custom);
-			wsprintfA(headers, hdrFmt, (const char*) t, strlen(custom));
-			strcat(headers, "\r\n");
-			Write(fd,headers,strlen(headers));
-			Write(fd,custom, strlen(custom));
 		}
 	}
 	else if(!stricmp(ptoken1,"POST")){

@@ -225,7 +225,13 @@ void readsrc(ifstream &f,char *custom,int &i){
 	}*/
 	custom[i]='"';i++;
 }
-
+char *lststr(char *a,char *b){
+    char *p;
+    int i;
+    for(i=strlen(a)-strlen(b);i>=0;i--)
+        if(p=strstr(a+i,b)) return p;
+    return NULL;
+}
 	
 void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 
@@ -359,9 +365,7 @@ void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 			}
 			dire[j]='\0';
 			//printf("%s\n",dire);
-			char *a=strstr(ptoken2,".");
-			map<string, char *>::iterator it;
-			if(a!=NULL) it = m_typeMap.find(strlwr(a));
+			
 
 			ifstream f(dire,ios::binary);
 			if(!f){
@@ -375,11 +379,15 @@ void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 					}
 				}
 			}
+			char *a=lststr(dire,".");
+			map<string, char *>::iterator it;
+			if(a!=NULL) it = m_typeMap.find(strlwr(a));
+
 			bool src=false;
 			char tmp=' ';
 				f.read((char *)custom,sizeof(custom));
 				//printf("%s\n",custom);
-				if(a!=NULL){
+				if(a!=NULL&&it!=m_typeMap.end()){
 					
 					//printf("%s",(*it).second);
 					DWORD len=GetFileSize(f, NULL);
@@ -391,7 +399,6 @@ void TCPhttpd(void *w){SOCKET fd=((SOCKET_INF *)w)->s;
 				Write(fd,(char *)custom, f.gcount());
 			while(!f.eof()){
 				f.read((char *)custom,sizeof(custom));
-				
 				Write(fd,(char *)custom, f.gcount());
 			}
 
